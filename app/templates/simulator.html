@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+  .phone { max-width:380px; margin:0 auto; }
+  .thread { height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:4px; }
+  .msg { max-width:80%; padding:8px 12px; border-radius:16px; font-size:14px; }
+  .out { align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:4px; }
+  .in  { align-self:flex-start; background:#ebe9e3; border-bottom-left-radius:4px; }
+  .compose { display:flex; gap:8px; margin-top:10px; }
+  .compose input { flex:1; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="phone card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <strong>Simulateur SMS</strong>
+    <select id="user">{% for u in users %}<option {{ 'selected' if u.name==me.name }}>{{ u.name }}</option>{% endfor %}</select>
+  </div>
+  <p class="muted" style="margin:0 0 8px;font-size:13px">Teste le traitement sans téléphone. Les dépenses sont vraiment enregistrées.</p>
+  <div class="thread" id="thread"><div class="msg in">Essayez : « 45 café », « 320 courses marjane hier », « total », « aide »</div></div>
+  <form class="compose" id="f"><input id="t" placeholder="Message…" autocomplete="off" autofocus><button>Envoyer</button></form>
+</div>
+<script>
+const th = document.getElementById('thread');
+function add(cls, text){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; th.appendChild(d); th.scrollTop=th.scrollHeight; }
+document.getElementById('f').onsubmit = async (e) => {
+  e.preventDefault(); const t=document.getElementById('t'); const text=t.value.trim(); if(!text) return;
+  add('out', text); t.value='';
+  try {
+    const r = await fetch('/simulateur', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user: document.getElementById('user').value, text})});
+    const j = await r.json(); add('in', j.reply || 'Erreur');
+  } catch(err){ add('in', 'Erreur réseau'); }
+};
+</script>
+{% endblock %}

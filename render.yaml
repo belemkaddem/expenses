@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: depenses
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: TZ
+        value: Africa/Casablanca
+      - key: DATABASE_URL
+        sync: false        # URL Postgres Neon (gratuite et permanente)
+      - key: USERS
+        sync: false        # Yassine|06XXXXXXXX|motdepasse;Autre|06XXXXXXXX|motdepasse
+      - key: WEBHOOK_TOKEN
+        sync: false        # python -c "import secrets; print(secrets.token_urlsafe(32))"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SMSGATE_USER
+        sync: false
+      - key: SMSGATE_PASSWORD
+        sync: false

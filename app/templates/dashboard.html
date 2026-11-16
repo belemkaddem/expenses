@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+  .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .month { display:flex; align-items:center; gap:10px; font-weight:600; font-size:18px; }
+  .month a { font-size:20px; padding:0 6px; }
+  .tabs { display:flex; gap:4px; background:#ebe9e3; padding:4px; border-radius:10px; }
+  .tabs a { padding:6px 12px; border-radius:7px; color:var(--muted); font-size:14px; }
+  .tabs a.on { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:16px; }
+  .kpi .label { font-size:13px; color:var(--muted); }
+  .kpi .value { font-size:26px; font-weight:650; letter-spacing:-.02em; margin-top:2px; }
+  .kpi .delta { font-size:13px; margin-top:2px; }
+  .grid { display:grid; grid-template-columns:1fr 1.6fr; gap:16px; align-items:start; }
+  @media (max-width:760px){ .grid{ grid-template-columns:1fr; } }
+  h2 { font-size:15px; margin:0 0 12px; }
+  .bar-row { display:grid; grid-template-columns:120px 1fr auto; gap:10px; align-items:center; font-size:14px; margin:8px 0; }
+  .bar { height:10px; background:var(--accent); border-radius:0 4px 4px 0; min-width:2px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td, th { padding:8px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  th { font-weight:500; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  td.r, th.r { text-align:right; }
+  .pill { font-size:12px; background:var(--accent-soft); color:#0b4f49; padding:2px 8px; border-radius:99px; white-space:nowrap; }
+  .chan { font-size:11px; color:var(--muted); }
+  form.add { display:grid; grid-template-columns:110px 1fr 150px 140px auto auto; gap:8px; }
+  form.add > * { min-width:0; width:100%; }
+  .grid > * { min-width:0; }
+  .table-wrap { overflow-x:auto; }
+  @media (max-width:760px){
+    form.add{ grid-template-columns:1fr 1fr; }
+    .hide-sm { display:none; }
+    .kpis { grid-template-columns:1fr 1fr; }
+    .kpis .kpi:first-child { grid-column:1 / -1; }
+    .kpi .value { font-size:22px; }
+    .bar-row { grid-template-columns:105px 1fr auto; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div class="month">
+    <a href="/?month={{ prev }}&who={{ who }}" aria-label="Mois précédent">‹</a>
+    <span>{{ ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"][month.month-1] | capitalize }} {{ month.year }}</span>
+    <a href="/?month={{ next }}&who={{ who }}" aria-label="Mois suivant">›</a>
+  </div>
+  <div class="tabs">
+    <a href="/?month={{ month_str }}&who=foyer" class="{{ 'on' if who=='foyer' }}">Foyer</a>
+    {% for u in users %}
+    <a href="/?month={{ month_str }}&who={{ u.name }}" class="{{ 'on' if who==u.name }}">{{ u.name }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="card kpi">
+    <div class="label">Total {{ 'foyer' if who=='foyer' else who }}</div>
+    <div class="value num">{{ total | money }}</div>
+    {% if prev_total %}
+      {% set d = (total - prev_total) / prev_total * 100 %}
+      <div class="delta {{ 'muted' }}">{{ '+' if d >= 0 }}{{ '%.0f' % d }} % vs mois précédent ({{ prev_total | money }})</div>
+    {% else %}<div class="delta muted">{{ rows|length }} dépense{{ 's' if rows|length > 1 }}</div>{% endif %}
+  </div>
+  {% for name, t in by_user.items() %}
+  <div class="card kpi">
+    <div class="label">{{ name }}</div>
+    <div class="value num">{{ t | money }}</div>
+    <div class="delta muted">{{ '%.0f' % (t / household * 100) if household else 0 }} % du foyer</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>Ajouter une dépense</h2>
+  <form class="add" method="post" action="/expenses?who={{ who }}">
+    <input name="amount" inputmode="decimal" placeholder="Montant" required>
+    <input name="description" placeholder="Description (ex. courses marjane)">
+    <select name="category"><option value="">Catégorie auto</option>
+      {% for c in categories %}<option>{{ c }}</option>{% endfor %}</select>
+    <input type="date" name="spent_on" value="{{ today }}">
+    <select name="user">{% for u in users %}<option {{ 'selected' if u.name==me.name }}>{{ u.name }}</option>{% endfor %}</select>
+    <button>Ajouter</button>
+  </form>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Par catégorie</h2>
+    {% for cat, t in by_cat %}
+    <div class="bar-row">
+      <span>{{ cat }}</span>
+      <div class="bar" style="width:{{ (t / max_cat * 100) | round(1) }}%"></div>
+      <span class="num">{{ t | money }}</span>
+    </div>
+    {% else %}<p class="muted">Aucune dépense ce mois-ci.<br>Envoyez par exemple « 45 café » par SMS.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Détail</h2>
+    {% if rows %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th>{% if who=='foyer' %}<th>Qui</th>{% endif %}<th>Description</th><th class="hide-sm">Catégorie</th><th class="r">Montant</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="num">{{ r.spent_on.strftime('%d/%m') }}</td>
+        {% if who=='foyer' %}<td>{{ r.user }}</td>{% endif %}
+        <td>{{ r.description }} <span class="chan">· {{ r.channel }}</span></td>
+        <td class="hide-sm"><span class="pill">{{ r.category }}</span></td>
+        <td class="r num">{{ r.amount | money }}</td>
+        <td><form method="post" action="/expenses/{{ r.id }}/delete" onsubmit="return confirm('Supprimer cette dépense ?')">
+          <button class="btn-ghost" title="Supprimer">✕</button></form></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="muted">Rien pour l'instant.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}
